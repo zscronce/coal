@@ -6,6 +6,8 @@ import (
 )
 
 func Test01(t *testing.T) {
+	a := assert.New(t)
+
 	g := &game{
 		players: [2]*player{
 			&player{
@@ -22,7 +24,6 @@ func Test01(t *testing.T) {
 	g.attack(1, 1)
 
 	characters := g.characters()
-	a := assert.New(t)
 	a.Equal(1, len(characters[0]))
 	a.Equal(28, characters[0][0].health())
 	a.Equal(2, len(characters[1]))
