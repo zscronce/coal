@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test03(t *testing.T) {
+func TestAbusiveSergeant(t *testing.T) {
 	a := assert.New(t)
 
 	g := newGame([2]*player{

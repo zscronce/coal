@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test04(t *testing.T) {
+func TestArcaniteReaper(t *testing.T) {
 	a := assert.New(t)
 
 	g := newGame([2]*player{

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test02(t *testing.T) {
+func TestAnubarak(t *testing.T) {
 	a := assert.New(t)
 
 	anubarak := newAnubarak()

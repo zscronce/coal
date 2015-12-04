@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test01(t *testing.T) {
+func TestAbomination(t *testing.T) {
 	a := assert.New(t)
 
 	g := &game{
