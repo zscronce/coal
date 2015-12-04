@@ -26,6 +26,7 @@ type hero interface {
 	character
 	armor() int
 	weapon() weapon
+	equip(weapon) weapon
 }
 
 type minion interface {
@@ -49,6 +50,8 @@ type weapon interface {
 	card
 	attack() int
 	durability() int
+	strike(char character)
+	deathrattle(*game)
 }
 
 type cardImpl struct {
@@ -87,9 +90,10 @@ type trapImpl struct {
 }
 
 type weaponImpl struct {
-	card
-	attack_     int
-	durability_ int
+	cardImpl
+	attack_      int
+	durability_  int
+	deathrattle_ effect
 }
 
 func newHero(name string) hero {
@@ -119,6 +123,17 @@ func newMinion(name string, cost int, attack int, health int) minion {
 			health_:    health,
 			maxHealth_: health,
 		},
+	}
+}
+
+func newWeapon(name string, cost int, attack int, durability int) weapon {
+	return &weaponImpl{
+		cardImpl: cardImpl{
+			name_: name,
+			cost_: cost,
+		},
+		attack_:     attack,
+		durability_: durability,
 	}
 }
 
@@ -182,6 +197,20 @@ func (this *characterImpl) unChangeAttack(d *delta) {
 	}
 }
 
+func (this *heroImpl) weapon() weapon {
+	return this.weapon_
+}
+
+func (this *heroImpl) armor() int {
+	return this.armor_
+}
+
+func (this *heroImpl) equip(w weapon) weapon {
+	old := this.weapon()
+	this.weapon_ = w
+	return old
+}
+
 func (this *minionImpl) play(g *game, params ...int) {
 	this.cardImpl.play(g)
 	g.summon(0, this)
@@ -212,10 +241,25 @@ func (this *minionImpl) changeMaxHealth(d *delta) {
 	this.maxHealthDeltas = append(this.maxHealthDeltas, d)
 }
 
-func (this *heroImpl) weapon() weapon {
-	return this.weapon_
+func (this *weaponImpl) attack() int {
+	return this.attack_
 }
 
-func (this *heroImpl) armor() int {
-	return this.armor_
+func (this *weaponImpl) durability() int {
+	return this.durability_
+}
+
+func (this *weaponImpl) strike(char character) {
+	this.durability_--
+}
+
+func (this *weaponImpl) deathrattle(g *game) {
+	if this.deathrattle_ != nil {
+		this.deathrattle_.apply(g)
+	}
+}
+
+func (this *weaponImpl) play(g *game, params ...int) {
+	this.cardImpl.play(g, params...)
+	g.equip(0, this)
 }

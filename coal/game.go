@@ -77,9 +77,24 @@ func (this *game) attack(aIdx int, iIdx int) {
 	attacker := characters[0][aIdx]
 	defender := characters[1][iIdx]
 
+	attackerAttack := attacker.attack()
+	defenderAttack := defender.attack()
+
+	attackerHero, isAttackerHero := attacker.(hero)
+	if isAttackerHero && attackerHero.weapon() != nil {
+		attackerAttack += attackerHero.weapon().attack()
+	}
+
 	damages := []damage{
-		damage{1, iIdx, attacker.attack()},
-		damage{0, aIdx, defender.attack()},
+		damage{1, iIdx, attackerAttack},
+		damage{0, aIdx, defenderAttack},
+	}
+
+	if isAttackerHero && attackerHero.weapon() != nil {
+		attackerHero.weapon().strike(defender)
+		if attackerHero.weapon().durability() <= 0 {
+			this.equip(0, nil)
+		}
 	}
 
 	this.damage(damages)
@@ -103,6 +118,13 @@ func (this *game) summon(p int, m minion) {
 func (this *game) addToHand(p int, c card) {
 	this.players[p].hand = append(this.players[p].hand, c)
 	this.owner[c] = p
+}
+
+func (this *game) equip(p int, w weapon) {
+	last := this.players[p].hero.equip(w)
+	if last != nil {
+		last.deathrattle(this)
+	}
 }
 
 func (this *game) run(phase func()) {
