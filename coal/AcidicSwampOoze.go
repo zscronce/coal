@@ -9,6 +9,6 @@ func (this *acidicSwampOozeBattlecry) apply(g *game, params ...int) {
 
 func newAcidicSwampOoze() minion {
 	acidicSwampOoze := newMinion("Acidic Swamp Ooze", 2, 3, 2)
-	acidicSwampOoze.setBattlecry(&acidicSwampOozeBattlecry{})
+	acidicSwampOoze.battlecry_ = &acidicSwampOozeBattlecry{}
 	return acidicSwampOoze
 }

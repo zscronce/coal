@@ -31,7 +31,6 @@ type hero interface {
 
 type minion interface {
 	character
-	setBattlecry(effect)
 	battlecry(*game, ...int)
 	addDeathrattle(effect)
 	deathrattle(*game)
@@ -96,7 +95,7 @@ type weaponImpl struct {
 	deathrattle_ effect
 }
 
-func newHero(name string) hero {
+func newHero(name string) *heroImpl {
 	return &heroImpl{
 		characterImpl: characterImpl{
 			cardImpl: cardImpl{
@@ -112,7 +111,7 @@ func newHero(name string) hero {
 	}
 }
 
-func newMinion(name string, cost int, attack int, health int) minion {
+func newMinion(name string, cost int, attack int, health int) *minionImpl {
 	return &minionImpl{
 		characterImpl: characterImpl{
 			cardImpl: cardImpl{
@@ -126,7 +125,7 @@ func newMinion(name string, cost int, attack int, health int) minion {
 	}
 }
 
-func newWeapon(name string, cost int, attack int, durability int) weapon {
+func newWeapon(name string, cost int, attack int, durability int) *weaponImpl {
 	return &weaponImpl{
 		cardImpl: cardImpl{
 			name_: name,
@@ -215,10 +214,6 @@ func (this *minionImpl) play(g *game, params ...int) {
 	this.cardImpl.play(g)
 	g.summon(0, this)
 	this.battlecry(g, params...)
-}
-
-func (this *minionImpl) setBattlecry(bc effect) {
-	this.battlecry_ = bc
 }
 
 func (this *minionImpl) addDeathrattle(dr effect) {
