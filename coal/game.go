@@ -1,7 +1,5 @@
 package coal
 
-//import "fmt"
-
 // game interface
 type Game interface {
 	Active() *Player
@@ -13,8 +11,11 @@ type Game interface {
 	EndTurn()
 	addToHand(int, Card)
 	damageAllCharacters(int)
+	damageHero(int, int)
 	destroy(Minion)
 	destroyAt(int, int)
+	draw(int, int)
+	drawOne(int)
 	equip(int, Weapon)
 	ownerOf(Card) int
 	summon(int, Minion)
@@ -33,6 +34,7 @@ type Player struct {
 	deck    []Card
 	mana    int
 	maxMana int
+	fatigue int
 }
 
 type game struct {
@@ -46,28 +48,22 @@ type game struct {
 
 func NewGame(players [2]*Player) Game {
 	g := &game{
-		players: players,
-		owner:   map[Card]int{},
+		players:        players,
+		runDepth:       0,
+		owner:          map[Card]int{},
+		deadIdx:        [2][]bool{[]bool{}, []bool{}},
+		endTurnEffects: []effect{},
+		damageEffects:  []effect{},
 	}
 
-	for p, pl := range g.players {
+	for p, pl := range g.Players() {
 		g.owner[pl.hero] = p
-		for _, min := range pl.minions {
-			g.owner[min] = p
-			g.deadIdx[p] = append(g.deadIdx[p], false)
-			g.registerAuras(min)
+		for m := range pl.minions {
+			g.intakeMinion(p, m)
 		}
 	}
 
 	return g
-}
-
-func minionIdx(characterIdx int) int {
-	return characterIdx - 1
-}
-
-func characterIdx(minionIdx int) int {
-	return minionIdx + 1
 }
 
 func (this *Player) characterAt(idx int) Character {
@@ -79,18 +75,18 @@ func (this *Player) characterAt(idx int) Character {
 }
 
 func (this *game) Active() *Player {
-	return this.players[0]
+	return this.Players()[0]
 }
 
 func (this *game) Inactive() *Player {
-	return this.players[1]
+	return this.Players()[1]
 }
 
 func (this *game) Players() [2]*Player {
 	return this.players
 }
 
-// Plays the card at this.players[0].hand[h], optional additional parameters (target selection)
+// Plays the card at this.Players()[0].hand[h], optional additional parameters (target selection)
 func (this *game) PlayFromHand(h int, params ...interface{}) {
 	cd := this.Active().hand[h]
 	before := this.Active().hand[:h]
@@ -109,6 +105,7 @@ func (this *game) EndTurn() {
 	}
 
 	this.players[0], this.players[1] = this.players[1], this.players[0]
+	this.deadIdx[0], this.deadIdx[1] = this.deadIdx[1], this.deadIdx[0]
 	for c, o := range this.owner {
 		this.owner[c] = o ^ 1
 	}
@@ -149,7 +146,7 @@ func (this *game) Attack(aIdx int, dIdx int) {
 }
 
 func (this *game) addToHand(p int, cd Card) {
-	this.players[p].hand = append(this.players[p].hand, cd)
+	this.Players()[p].hand = append(this.Players()[p].hand, cd)
 	this.owner[cd] = p
 }
 
@@ -158,7 +155,7 @@ func (this *game) damageAllCharacters(dmg int) {
 	cIdx := []int{}
 	amount := []int{}
 
-	for p, pl := range this.players {
+	for p, pl := range this.Players() {
 		pIdx = append(pIdx, p)
 		cIdx = append(cIdx, 0)
 		amount = append(amount, dmg)
@@ -171,6 +168,10 @@ func (this *game) damageAllCharacters(dmg int) {
 	}
 
 	this.damage(pIdx, cIdx, amount)
+}
+
+func (this *game) damageHero(p int, dmg int) {
+	this.damage([]int{p}, []int{0}, []int{dmg})
 }
 
 func (this *game) destroy(target Minion) {
@@ -189,9 +190,30 @@ func (this *game) destroyAt(p int, m int) {
 	})
 }
 
+func (this *game) draw(p int, n int) {
+	for i := 0; i < n; i++ {
+		this.drawOne(p)
+	}
+}
+
+func (this *game) drawOne(p int) {
+	this.run(func() {
+		pl := this.Players()[p]
+
+		if len(pl.deck) == 0 {
+			pl.fatigue++
+			this.damageHero(p, pl.fatigue)
+		} else {
+			drawn := pl.deck[0]
+			pl.deck = pl.deck[1:]
+			pl.hand = append(pl.hand, drawn)
+		}
+	})
+}
+
 func (this *game) equip(p int, wp Weapon) {
-	prev := this.players[p].hero.Weapon()
-	this.players[p].hero.equip(wp)
+	prev := this.Players()[p].hero.Weapon()
+	this.Players()[p].hero.equip(wp)
 	if prev != nil {
 		this.deathrattle(prev)
 	}
@@ -213,8 +235,9 @@ func (this *game) ownerOf(cd Card) int {
 }
 
 func (this *game) summon(p int, min Minion) {
-	this.addMinion(p, min)
-	this.owner[min] = p
+	pl := this.Players()[p]
+	pl.minions = append(pl.minions, min)
+	this.intakeMinion(p, len(pl.minions)-1)
 }
 
 func (this *game) onEndTurn(e effect) {
@@ -248,7 +271,7 @@ func (this *game) damage(pIdx []int, cIdx []int, amounts []int) {
 				continue
 			}
 
-			ch := this.players[pIdx[i]].characterAt(cIdx[i])
+			ch := this.Players()[pIdx[i]].characterAt(cIdx[i])
 			taken := ch.damage(amounts[i])
 			if taken != 0 {
 				tookDamage = append(tookDamage, ch)
@@ -276,49 +299,59 @@ func (this *game) deathrattle(cd deathrattleCard) {
 	}
 }
 
-func (this *game) run(phase func()) {
-	this.runDepth++
-	phase()
-	this.runDepth--
+// Should be called whenever a new minion is added to a player's minion line. Performs upkeep of the
+// game's state.
+func (this *game) intakeMinion(p int, m int) {
+	min := this.Players()[p].minions[m]
 
-	if this.runDepth == 0 {
-		for p := range this.players {
-			for m := 0; m < len(this.players[p].minions); m++ {
-				if this.deadIdx[p][m] {
-					min := this.players[p].minions[m]
-					this.removeMinion(p, m)
-					this.deathrattle(min)
-					m--
-				}
-			}
-		}
-	}
-}
-
-func (this *game) addMinion(p int, m Minion) {
-	this.players[p].minions = append(this.players[p].minions, m)
-	this.deadIdx[p] = append(this.deadIdx[p], false)
-}
-
-func (this *game) removeMinion(p int, m int) {
-	this.players[p].minions = append(this.players[p].minions[:m], this.players[p].minions[m+1:]...)
-	this.deadIdx[p] = append(this.deadIdx[p][:m], this.deadIdx[p][m+1:]...)
-}
-
-func (this *game) registerAuras(min Minion) {
+	this.owner[min] = p
+	this.deadIdx[p] = append(append(this.deadIdx[p][:m], false), this.deadIdx[p][m:]...)
 	for _, aura := range min.getAuras() {
 		aura.register(this)
 	}
 }
 
-func (this *game) unRegisterAuras(min Minion) {
-	for _, aura := range min.getAuras() {
+// Should be called whenever a minion is removed from a player's minion line. Performs upkeep of the
+// game's state.
+func (this *game) outturnMinion(p int, m int) {
+	this.deadIdx[p] = append(this.deadIdx[p][:m], this.deadIdx[p][m+1:]...)
+	for _, aura := range this.Players()[p].minions[m].getAuras() {
 		aura.unRegister(this)
+	}
+}
+
+func (this *game) run(phase func()) {
+	this.runDepth++
+	phase()
+	this.runDepth--
+
+	if this.runDepth != 0 {
+		return
+	}
+
+	for p := range this.Players() {
+		for m := 0; m < len(this.Players()[p].minions); m++ {
+			if this.deadIdx[p][m] {
+				min := this.Players()[p].minions[m]
+				this.outturnMinion(p, m)
+				this.Players()[p].minions = append(this.Players()[p].minions[:m], this.Players()[p].minions[m+1:]...)
+				this.deathrattle(min)
+				m--
+			}
+		}
 	}
 }
 
 func addEffect(slice *[]effect, e effect) {
 	*slice = append(*slice, e)
+}
+
+func characterIdx(minionIdx int) int {
+	return minionIdx + 1
+}
+
+func minionIdx(characterIdx int) int {
+	return characterIdx - 1
 }
 
 func removeEffect(slice *[]effect, e effect) {
