@@ -1,5 +1,5 @@
 package coal
 
-func newArcaniteReaper() weapon {
+func newArcaniteReaper() Weapon {
 	return newWeapon("Arcanite Reaper", 5, 5, 2)
 }

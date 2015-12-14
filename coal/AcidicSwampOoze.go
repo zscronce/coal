@@ -1,14 +1,7 @@
 package coal
 
-type acidicSwampOozeBattlecry struct {
-}
-
-func (this *acidicSwampOozeBattlecry) apply(g *game, params ...int) {
-	g.equip(1, nil)
-}
-
-func newAcidicSwampOoze() minion {
+func newAcidicSwampOoze() Minion {
 	acidicSwampOoze := newMinion("Acidic Swamp Ooze", 2, 3, 2)
-	acidicSwampOoze.battlecry_ = &acidicSwampOozeBattlecry{}
+	acidicSwampOoze.battlecry = &destroyWeapon{1}
 	return acidicSwampOoze
 }

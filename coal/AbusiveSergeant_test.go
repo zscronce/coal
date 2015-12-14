@@ -8,26 +8,30 @@ import (
 func TestAbusiveSergeant(t *testing.T) {
 	a := assert.New(t)
 
-	g := newGame([2]*player{
-		&player{
+	g := NewGame([2]*Player{
+		&Player{
 			hero:    newRexxar(),
-			hand:    []card{newAbusiveSergeant()},
-			minions: []minion{newChillwindYeti()},
+			hand:    []Card{newAbusiveSergeant()},
+			minions: []Minion{newChillwindYeti()},
+			mana:    10,
+			maxMana: 10,
 		},
-		&player{
-			hero: newRexxar(),
+		&Player{
+			hero:    newRexxar(),
+			mana:    10,
+			maxMana: 10,
 		},
 	})
 
-	g.play(0, 0, 1)
-	g.attack(1, 0)
+	g.PlayFromHand(0, 0, 1)
+	g.Attack(1, 0)
 
-	a.Equal(0, len(g.players[0].hand))
-	a.Equal(2, len(g.players[0].minions))
-	a.Equal(6, g.players[0].minions[0].attack())
-	a.Equal(24, g.players[1].hero.health())
+	a.Equal(0, len(g.Active().hand))
+	a.Equal(2, len(g.Active().minions))
+	a.Equal(6, g.Active().minions[0].Attack())
+	a.Equal(24, g.Inactive().hero.Health())
 
-	g.nextTurn()
+	g.EndTurn()
 
-	a.Equal(4, g.players[1].minions[0].attack())
+	a.Equal(4, g.Inactive().minions[0].Attack())
 }

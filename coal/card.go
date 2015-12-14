@@ -1,260 +1,256 @@
 package coal
 
-type delta struct {
-	f func(int) int
+type Card interface {
+	Name() string
+	Cost() int
+	play(Game, ...interface{})
 }
 
-type card interface {
-	name() string
-	cost() int
-	play(*game, ...int)
-	changeCost(*delta)
+type deathrattleCard interface {
+	Card
+	getDeathrattles() []effect
 }
 
-type character interface {
-	card
-	attack() int
-	health() int
-	maxHealth() int
-	damage(int)
-	isDead() bool
-	changeAttack(*delta)
-	unChangeAttack(*delta)
+type Character interface {
+	Card
+	Attack() int
+	Health() int
+	MaxHealth() int
+	damage(int) int
+	mutateAttack(mutation)
+	unMutateAttack(mutation)
 }
 
-type hero interface {
-	character
-	armor() int
-	weapon() weapon
-	equip(weapon) weapon
+type Hero interface {
+	Character
+	Armor() int
+	Weapon() Weapon
+	equip(Weapon)
 }
 
-type minion interface {
-	character
-	battlecry(*game, ...int)
+type Minion interface {
+	Character
 	addDeathrattle(effect)
-	deathrattle(*game)
-	changeMaxHealth(*delta)
+	getDeathrattles() []effect
+	getAuras() []aura
 }
 
-type spell interface {
+type Spell interface {
+	Card
+}
+
+type Trap interface {
+	Spell
+}
+
+type Weapon interface {
+	Card
+	Attack() int
+	Durability() int
+	degrade()
+	getDeathrattles() []effect
+}
+
+type card struct {
+	name string
+	cost int
+}
+
+type character struct {
+	card
+	attack          int
+	health          int
+	maxHealth       int
+	attackMutations []mutation
+}
+
+type hero struct {
+	character
+	armor  int
+	weapon Weapon
+	power  effect
+}
+
+type minion struct {
+	character
+	battlecry   effect
+	deathrattle []effect
+	auras       []aura
+}
+
+type spell struct {
 	card
 }
 
-type trap interface {
+type trap struct {
 	spell
 }
 
-type weapon interface {
+type weapon struct {
 	card
-	attack() int
-	durability() int
-	strike(char character)
-	deathrattle(*game)
+	attack      int
+	durability  int
+	battlecry   effect
+	deathrattle effect
 }
 
-type cardImpl struct {
-	name_      string
-	cost_      int
-	costDeltas []*delta
-}
-
-type characterImpl struct {
-	cardImpl
-	attack_      int
-	health_      int
-	maxHealth_   int
-	attackDeltas []*delta
-}
-
-type heroImpl struct {
-	characterImpl
-	armor_  int
-	weapon_ weapon
-}
-
-type minionImpl struct {
-	characterImpl
-	maxHealthDeltas []*delta
-	battlecry_      effect
-	deathrattle_    []effect
-}
-
-type spellImpl struct {
-	cardImpl
-}
-
-type trapImpl struct {
-	spellImpl
-}
-
-type weaponImpl struct {
-	cardImpl
-	attack_      int
-	durability_  int
-	deathrattle_ effect
-}
-
-func newHero(name string) *heroImpl {
-	return &heroImpl{
-		characterImpl: characterImpl{
-			cardImpl: cardImpl{
-				name_: name,
-				cost_: 2,
+func newHero(name string) *hero {
+	return &hero{
+		character: character{
+			card: card{
+				name: name,
+				cost: 2,
 			},
-			attack_:    0,
-			health_:    30,
-			maxHealth_: 30,
+			attack:    0,
+			health:    30,
+			maxHealth: 30,
 		},
-		armor_:  0,
-		weapon_: nil,
+		armor:  0,
+		weapon: nil,
 	}
 }
 
-func newMinion(name string, cost int, attack int, health int) *minionImpl {
-	return &minionImpl{
-		characterImpl: characterImpl{
-			cardImpl: cardImpl{
-				name_: name,
-				cost_: cost,
+func newMinion(name string, cost int, attack int, health int) *minion {
+	return &minion{
+		character: character{
+			card: card{
+				name: name,
+				cost: cost,
 			},
-			attack_:    attack,
-			health_:    health,
-			maxHealth_: health,
+			attack:    attack,
+			health:    health,
+			maxHealth: health,
 		},
 	}
 }
 
-func newWeapon(name string, cost int, attack int, durability int) *weaponImpl {
-	return &weaponImpl{
-		cardImpl: cardImpl{
-			name_: name,
-			cost_: cost,
+func newWeapon(name string, cost int, attack int, durability int) *weapon {
+	return &weapon{
+		card: card{
+			name: name,
+			cost: cost,
 		},
-		attack_:     attack,
-		durability_: durability,
+		attack:     attack,
+		durability: durability,
 	}
 }
 
-func (this *cardImpl) name() string {
-	return this.name_
+func (this *card) Name() string {
+	return this.name
 }
 
-func (this *cardImpl) cost() int {
-	c := this.cost_
+func (this *card) Cost() int {
+	return this.cost
+}
 
-	for _, d := range this.costDeltas {
-		c = d.f(c)
+func (this *character) Attack() int {
+	a := this.attack
+	for _, mut := range this.attackMutations {
+		a = mut.apply(a)
 	}
-
-	return c
-}
-
-func (this *cardImpl) changeCost(d *delta) {
-	this.costDeltas = append(this.costDeltas, d)
-}
-
-func (this *cardImpl) play(g *game, params ...int) {
-	g.players[0].mana -= this.cost()
-}
-
-func (this *characterImpl) attack() int {
-	a := this.attack_
-
-	for _, d := range this.attackDeltas {
-		a = d.f(a)
-	}
-
 	return a
 }
 
-func (this *characterImpl) health() int {
-	return this.health_
+func (this *character) Health() int {
+	return this.health
 }
 
-func (this *characterImpl) maxHealth() int {
-	return this.maxHealth_
+func (this *character) MaxHealth() int {
+	return this.maxHealth
 }
 
-func (this *characterImpl) isDead() bool {
-	return this.health_ <= 0
+func (this *character) damage(dmg int) int {
+	this.health -= dmg
+	return dmg
 }
 
-func (this *characterImpl) damage(d int) {
-	this.health_ -= d
+func (this *character) mutateAttack(mut mutation) {
+	this.attackMutations = append(this.attackMutations, mut)
 }
 
-func (this *characterImpl) changeAttack(d *delta) {
-	this.attackDeltas = append(this.attackDeltas, d)
-}
-
-func (this *characterImpl) unChangeAttack(d *delta) {
-	for i, attackDelta := range this.attackDeltas {
-		if d == attackDelta {
-			this.attackDeltas = append(this.attackDeltas[:i], this.attackDeltas[i+1:]...)
+func (this *character) unMutateAttack(mut mutation) {
+	for i, m := range this.attackMutations {
+		if m == mut {
+			this.attackMutations = append(this.attackMutations[:i], this.attackMutations[i+1:]...)
+			return
 		}
 	}
 }
 
-func (this *heroImpl) weapon() weapon {
-	return this.weapon_
+func (this *character) offensiveAttack() int {
+	return this.Attack()
 }
 
-func (this *heroImpl) armor() int {
-	return this.armor_
+func (this *character) defensiveAttack() int {
+	return this.Attack()
 }
 
-func (this *heroImpl) equip(w weapon) weapon {
-	old := this.weapon()
-	this.weapon_ = w
-	return old
+func (this *hero) Weapon() Weapon {
+	return this.weapon
 }
 
-func (this *minionImpl) play(g *game, params ...int) {
-	this.cardImpl.play(g)
+func (this *hero) Armor() int {
+	return this.armor
+}
+
+func (this *hero) equip(w Weapon) {
+	this.weapon = w
+}
+
+func (this *hero) play(g Game, params ...interface{}) {
+	this.power.apply(g, params...)
+}
+
+func (this *minion) play(g Game, params ...interface{}) {
 	g.summon(0, this)
-	this.battlecry(g, params...)
-}
-
-func (this *minionImpl) addDeathrattle(dr effect) {
-	this.deathrattle_ = append(this.deathrattle_, dr)
-}
-
-func (this *minionImpl) battlecry(g *game, params ...int) {
-	if this.battlecry_ != nil {
-		this.battlecry_.apply(g, params...)
+	if this.battlecry != nil {
+		this.battlecry.apply(g, params...)
 	}
 }
 
-func (this *minionImpl) deathrattle(g *game) {
-	for _, dr := range this.deathrattle_ {
-		dr.apply(g)
+func (this *minion) addDeathrattle(dr effect) {
+	this.deathrattle = append(this.deathrattle, dr)
+}
+
+func (this *minion) getDeathrattles() []effect {
+	if this.deathrattle == nil {
+		return []effect{}
+	} else {
+		return this.deathrattle
 	}
 }
 
-func (this *minionImpl) changeMaxHealth(d *delta) {
-	this.maxHealthDeltas = append(this.maxHealthDeltas, d)
+func (this *minion) addAura(a aura) {
+	this.auras = append(this.auras, a)
 }
 
-func (this *weaponImpl) attack() int {
-	return this.attack_
+func (this *minion) getAuras() []aura {
+	return this.auras
 }
 
-func (this *weaponImpl) durability() int {
-	return this.durability_
+func (this *weapon) Attack() int {
+	return this.attack
 }
 
-func (this *weaponImpl) strike(char character) {
-	this.durability_--
+func (this *weapon) Durability() int {
+	return this.durability
 }
 
-func (this *weaponImpl) deathrattle(g *game) {
-	if this.deathrattle_ != nil {
-		this.deathrattle_.apply(g)
-	}
+func (this *weapon) degrade() {
+	this.durability--
 }
 
-func (this *weaponImpl) play(g *game, params ...int) {
-	this.cardImpl.play(g, params...)
+func (this *weapon) play(g Game, params ...interface{}) {
 	g.equip(0, this)
+	if this.battlecry != nil {
+		this.battlecry.apply(g, params)
+	}
+}
+
+func (this *weapon) getDeathrattles() []effect {
+	if this.deathrattle != nil {
+		return []effect{this.deathrattle}
+	} else {
+		return []effect{}
+	}
 }

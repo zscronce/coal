@@ -8,25 +8,26 @@ import (
 func TestAbomination(t *testing.T) {
 	a := assert.New(t)
 
-	g := &game{
-		players: [2]*player{
-			&player{
-				hero:    newRexxar(),
-				minions: []minion{newChillwindYeti()},
-			},
-			&player{
-				hero:    newRexxar(),
-				minions: []minion{newAbomination(), newChillwindYeti()},
-			},
+	g := NewGame([2]*Player{
+		&Player{
+			hero:    newRexxar(),
+			minions: []Minion{newChillwindYeti()},
+			mana:    10,
+			maxMana: 10,
 		},
-	}
+		&Player{
+			hero:    newRexxar(),
+			minions: []Minion{newAbomination(), newChillwindYeti()},
+			mana:    10,
+			maxMana: 10,
+		},
+	})
 
-	g.attack(1, 1)
+	g.Attack(1, 1)
 
-	characters := g.characters()
-	a.Equal(1, len(characters[0]))
-	a.Equal(28, characters[0][0].health())
-	a.Equal(2, len(characters[1]))
-	a.Equal(28, characters[1][0].health())
-	a.Equal(3, characters[1][1].health())
+	a.Equal(0, len(g.Active().minions))
+	a.Equal(28, g.Active().hero.Health())
+	a.Equal(1, len(g.Inactive().minions))
+	a.Equal(28, g.Inactive().hero.Health())
+	a.Equal(3, g.Inactive().minions[0].Health())
 }

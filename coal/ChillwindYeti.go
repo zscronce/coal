@@ -1,5 +1,5 @@
 package coal
 
-func newChillwindYeti() minion {
+func newChillwindYeti() Minion {
 	return newMinion("Chillwind Yeti", 4, 4, 5)
 }

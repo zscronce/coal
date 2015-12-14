@@ -1,5 +1,5 @@
 package coal
 
-func newRexxar() hero {
+func newRexxar() Hero {
 	return newHero("Rexxar")
 }
