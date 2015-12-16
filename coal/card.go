@@ -6,11 +6,6 @@ type Card interface {
 	play(Game, ...interface{})
 }
 
-type deathrattleCard interface {
-	Card
-	getDeathrattles() []effect
-}
-
 type Character interface {
 	Card
 	Attack() int
@@ -30,6 +25,10 @@ type Hero interface {
 
 type Minion interface {
 	Character
+	Charge() bool
+	DivineShield() bool
+	Taunt() bool
+	Windfury() bool
 	addDeathrattle(effect)
 	getDeathrattles() []effect
 	getAuras() []aura
@@ -48,6 +47,11 @@ type Weapon interface {
 	Attack() int
 	Durability() int
 	degrade()
+	getDeathrattles() []effect
+}
+
+type deathrattleCard interface {
+	Card
 	getDeathrattles() []effect
 }
 
@@ -73,9 +77,13 @@ type hero struct {
 
 type minion struct {
 	character
-	battlecry   effect
-	deathrattle []effect
-	auras       []aura
+	charge       bool
+	divineShield bool
+	taunt        bool
+	windfury     bool
+	battlecry    effect
+	deathrattle  []effect
+	auras        []aura
 }
 
 type spell struct {
@@ -121,6 +129,10 @@ func newMinion(name string, cost int, attack int, health int) *minion {
 			health:    health,
 			maxHealth: health,
 		},
+		charge:       false,
+		divineShield: false,
+		taunt:        false,
+		windfury:     false,
 	}
 }
 
@@ -177,20 +189,26 @@ func (this *character) unMutateAttack(mut mutation) {
 	}
 }
 
-func (this *character) offensiveAttack() int {
-	return this.Attack()
-}
-
-func (this *character) defensiveAttack() int {
-	return this.Attack()
-}
-
 func (this *hero) Weapon() Weapon {
 	return this.weapon
 }
 
 func (this *hero) Armor() int {
 	return this.armor
+}
+
+func (this *hero) damage(dmg int) int {
+	dmgToArmor := dmg
+
+	if dmg > this.Armor() {
+		dmgToArmor = this.Armor()
+	}
+
+	this.armor -= dmgToArmor
+	dmgToHealth := dmg - dmgToArmor
+	this.character.damage(dmgToHealth)
+
+	return dmg
 }
 
 func (this *hero) equip(w Weapon) {
@@ -201,15 +219,41 @@ func (this *hero) play(g Game, params ...interface{}) {
 	this.power.apply(g, params...)
 }
 
-func (this *minion) play(g Game, params ...interface{}) {
-	g.summon(0, this)
-	if this.battlecry != nil {
-		this.battlecry.apply(g, params...)
-	}
+func (this *minion) Charge() bool {
+	return this.charge
+}
+
+func (this *minion) DivineShield() bool {
+	return this.divineShield
+}
+
+func (this *minion) Taunt() bool {
+	return this.taunt
+}
+
+func (this *minion) Windfury() bool {
+	return this.windfury
+}
+
+func (this *minion) addAura(a aura) {
+	this.auras = append(this.auras, a)
 }
 
 func (this *minion) addDeathrattle(dr effect) {
 	this.deathrattle = append(this.deathrattle, dr)
+}
+
+func (this *minion) damage(dmg int) int {
+	if dmg == 0 {
+		return dmg
+	}
+
+	if this.DivineShield() {
+		this.divineShield = false
+		return 0
+	}
+
+	return this.character.damage(dmg)
 }
 
 func (this *minion) getDeathrattles() []effect {
@@ -220,12 +264,15 @@ func (this *minion) getDeathrattles() []effect {
 	}
 }
 
-func (this *minion) addAura(a aura) {
-	this.auras = append(this.auras, a)
-}
-
 func (this *minion) getAuras() []aura {
 	return this.auras
+}
+
+func (this *minion) play(g Game, params ...interface{}) {
+	g.summon(0, this)
+	if this.battlecry != nil {
+		this.battlecry.apply(g, params...)
+	}
 }
 
 func (this *weapon) Attack() int {
@@ -240,17 +287,17 @@ func (this *weapon) degrade() {
 	this.durability--
 }
 
-func (this *weapon) play(g Game, params ...interface{}) {
-	g.equip(0, this)
-	if this.battlecry != nil {
-		this.battlecry.apply(g, params)
-	}
-}
-
 func (this *weapon) getDeathrattles() []effect {
 	if this.deathrattle != nil {
 		return []effect{this.deathrattle}
 	} else {
 		return []effect{}
+	}
+}
+
+func (this *weapon) play(g Game, params ...interface{}) {
+	g.equip(0, this)
+	if this.battlecry != nil {
+		this.battlecry.apply(g, params)
 	}
 }

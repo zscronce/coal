@@ -19,6 +19,18 @@ func (this *onEndTurn) unRegister(g Game) {
 	g.offEndTurn(this.ef)
 }
 
+type onStartTurn struct {
+	ef effect
+}
+
+func (this *onStartTurn) register(g Game) {
+	g.onStartTurn(this.ef)
+}
+
+func (this *onStartTurn) unRegister(g Game) {
+	g.offStartTurn(this.ef)
+}
+
 type onDamage struct {
 	ef effect
 }

@@ -18,11 +18,15 @@ type Game interface {
 	drawOne(int)
 	equip(int, Weapon)
 	ownerOf(Card) int
+	removeFromHand(int, int)
+	returnMinionToHand(int, int)
 	summon(int, Minion)
-	onEndTurn(effect)
-	offEndTurn(effect)
 	onDamage(effect)
 	offDamage(effect)
+	onEndTurn(effect)
+	offEndTurn(effect)
+	onStartTurn(effect)
+	offStartTurn(effect)
 }
 
 // simple container to hold player state
@@ -38,22 +42,19 @@ type Player struct {
 }
 
 type game struct {
-	players        [2]*Player
-	runDepth       int
-	owner          map[Card]int
-	deadIdx        [2][]bool
-	endTurnEffects []effect
-	damageEffects  []effect
+	players          [2]*Player
+	runDepth         int
+	owner            map[Card]int
+	deadIdx          [2][]bool
+	endTurnEffects   []effect
+	damageEffects    []effect
+	startTurnEffects []effect
 }
 
 func NewGame(players [2]*Player) Game {
 	g := &game{
-		players:        players,
-		runDepth:       0,
-		owner:          map[Card]int{},
-		deadIdx:        [2][]bool{[]bool{}, []bool{}},
-		endTurnEffects: []effect{},
-		damageEffects:  []effect{},
+		players: players,
+		owner:   map[Card]int{},
 	}
 
 	for p, pl := range g.Players() {
@@ -100,14 +101,18 @@ func (this *game) PlayHeroPower(params ...interface{}) {
 }
 
 func (this *game) EndTurn() {
-	for e := 0; e < len(this.endTurnEffects); e++ {
-		this.endTurnEffects[e].apply(this)
+	for _, e := range this.endTurnEffects {
+		e.apply(this)
 	}
 
 	this.players[0], this.players[1] = this.players[1], this.players[0]
 	this.deadIdx[0], this.deadIdx[1] = this.deadIdx[1], this.deadIdx[0]
 	for c, o := range this.owner {
 		this.owner[c] = o ^ 1
+	}
+
+	for _, e := range this.startTurnEffects {
+		e.apply(this)
 	}
 }
 
@@ -234,10 +239,31 @@ func (this *game) ownerOf(cd Card) int {
 	return owner
 }
 
+func (this *game) removeFromHand(p int, h int) {
+	pl := this.Players()[p]
+	pl.hand = append(pl.hand[:h], pl.hand[h+1:]...)
+}
+
+func (this *game) returnMinionToHand(p int, m int) {
+	this.outturnMinion(p, m)
+	pl := this.Players()[p]
+	min := pl.minions[m]
+	pl.minions = append(pl.minions[:m], pl.minions[m+1:]...)
+	this.addToHand(p, min)
+}
+
 func (this *game) summon(p int, min Minion) {
 	pl := this.Players()[p]
 	pl.minions = append(pl.minions, min)
 	this.intakeMinion(p, len(pl.minions)-1)
+}
+
+func (this *game) onDamage(e effect) {
+	addEffect(&this.damageEffects, e)
+}
+
+func (this *game) offDamage(e effect) {
+	removeEffect(&this.damageEffects, e)
 }
 
 func (this *game) onEndTurn(e effect) {
@@ -248,12 +274,12 @@ func (this *game) offEndTurn(e effect) {
 	removeEffect(&this.endTurnEffects, e)
 }
 
-func (this *game) onDamage(e effect) {
-	addEffect(&this.damageEffects, e)
+func (this *game) onStartTurn(e effect) {
+	addEffect(&this.startTurnEffects, e)
 }
 
-func (this *game) offDamage(e effect) {
-	removeEffect(&this.damageEffects, e)
+func (this *game) offStartTurn(e effect) {
+	removeEffect(&this.startTurnEffects, e)
 }
 
 func (this *game) damage(pIdx []int, cIdx []int, amounts []int) {
